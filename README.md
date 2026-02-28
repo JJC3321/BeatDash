@@ -1,102 +1,105 @@
 # BeatDash
 
-Transform your Spotify playlists into AI-powered rhythm game adventures.
+Turn a Spotify playlist into a Geometry Dash-inspired auto-runner with AI-generated gameplay tuning, theming, and per-track map patterns.
 
-## About
+## What the app does
 
-BeatDash is a web application that uses AI to convert Spotify playlists into unique rhythm games. The app analyzes your playlist's musical characteristics and generates custom game mechanics, obstacles, and visual themes that match the mood and energy of your music.
+1. Accepts a Spotify playlist URL or playlist ID
+2. Calls `spotify-analyze` to estimate playlist metrics and normalized per-track data
+3. Calls `gemini-generate` to create a game configuration from those metrics
+4. Calls `gemini-generate-map` for song-specific obstacle patterns
+5. Runs gameplay in a React + Excalibur-based front end, with fallback maps if AI generation fails
 
-## Features
+## Current feature set
 
-- **Spotify Integration**: Connect any Spotify playlist to analyze tracks
-- **AI-Powered Generation**: Uses Google Gemini to create unique game configurations based on playlist metadata
-- **Dynamic Gameplay**: Game mechanics adapt to tempo, energy, danceability, and other audio features
-- **Real-time Map Generation**: Procedurally generated obstacle patterns that sync with your music
-- **Visual Themes**: AI-generated color palettes and assets that match your playlist's vibe
-
-## How it works
-
-1. **Connect**: Paste a Spotify playlist link
-2. **Analyze**: The app extracts audio features and metadata from your tracks
-3. **Generate**: Gemini AI creates game mechanics, themes, and configurations
-4. **Play**: Experience your music as an interactive rhythm game
+- Spotify playlist ingestion from URL or ID
+- Playlist analysis with fallback behavior when Spotify credentials are missing or API calls fail
+- Gemini-driven game config generation (difficulty, speed, colors, asset style)
+- Gemini-driven track map generation with enforced playability constraints
+- Map caching and preloading for smoother transitions between tracks
+- Fallback pre-made map generation for reliability
+- Unit tests for `mapGenerator` behavior (caching, fallback flow, preloading)
 
 ## Tech stack
 
-- **Frontend**: React, TypeScript, Tailwind CSS, Framer Motion
-- **Game Engine**: Excalibur.js for 2D game mechanics
-- **Backend**: Supabase for serverless functions
-- **AI**: Google Gemini for game generation
-- **Music API**: Spotify Web API for playlist analysis
+- Front end: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Framer Motion
+- Game runtime: Excalibur
+- Data/service layer: Supabase JS client + Supabase Edge Functions
+- AI: Google Gemini API (tool/function-calling style responses)
+- Music source: Spotify Web API
+- Testing: Vitest + Testing Library + JSDOM
 
-## Project info
+## Repository structure
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+- `src/pages/Index.tsx`: main app flow (input -> loading -> game)
+- `src/components/screens/`: landing/loading/game screens
+- `src/game/`: game engine, assets, map generation, fallback reference maps
+- `src/integrations/supabase/`: Supabase web client setup
+- `supabase/functions/spotify-analyze/`: playlist and track metric estimation
+- `supabase/functions/gemini-generate/`: game configuration generation
+- `supabase/functions/gemini-generate-map/`: per-track map generation
+- `src/test/`: automated tests
 
-## How can I edit this code?
+## Prerequisites
 
-There are several ways of editing your application.
+- Node.js 18+ (Node 20+ recommended)
+- npm
+- A Supabase project with Edge Functions enabled
+- Spotify app credentials (for best analysis quality)
+- Gemini API key
 
-**Use Lovable**
+## Environment variables
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Create a `.env` file in the project root:
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_or_publishable_key
+```
 
-**Use your preferred IDE**
+Set these secrets for Supabase Edge Functions:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- `SPOTIFY_CLIENT_ID`
+- `SPOTIFY_CLIENT_SECRET`
+- `GEMINI_API_KEY`
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Local development
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app runs on Vite's default local URL unless configured otherwise.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Available scripts
 
-**Use GitHub Codespaces**
+- `npm run dev`: start local dev server
+- `npm run build`: production build
+- `npm run build:dev`: development-mode build
+- `npm run preview`: preview built app locally
+- `npm run lint`: run ESLint
+- `npm run test`: run Vitest once
+- `npm run test:watch`: run Vitest in watch mode
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Supabase function contracts
 
-## What technologies are used for this project?
+- `spotify-analyze` input: `{ playlistId }`
+  - Returns playlist metadata and estimated metrics (`avgTempo`, `avgEnergy`, `avgValence`, etc.) plus normalized track info
+  - Falls back to deterministic sample metrics when Spotify access is unavailable
+- `gemini-generate` input: `{ playlistName, metrics }`
+  - Returns game configuration (physics/speed/difficulty, palette, assets)
+- `gemini-generate-map` input: `{ track }`
+  - Returns song map patterns + visual theme
+  - Post-processing clamps values to playable bounds
 
-This project is built with:
+## Reliability behavior
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- If Spotify token fetch or playlist fetch fails, the app still generates a playable experience using fallback metrics.
+- If map generation fails, `mapGenerator` returns a pre-made fallback map and caches it.
+- Cache cleanup runs periodically and removes stale entries.
 
-## How can I deploy this project?
+## Notes
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- Spotify's legacy audio-features endpoint is deprecated, so analysis is inferred from available metadata and artist genre signals.
+- This project currently focuses on a single gameplay mode: `geodash`.
