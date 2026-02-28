@@ -86,15 +86,18 @@ const GameScreen = ({ config, playlistName, playlistId, score, onScoreChange, on
         </div>
       </div>
 
-      {/* Compact Spotify player - minimal bar at bottom */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+      {/* Hidden Spotify player - zero size + opacity 0 keeps it in DOM for autoplay */}
+      <div
+        style={{ width: 0, height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', bottom: 0, left: 0 }}
+        aria-hidden="true"
+      >
         <iframe
-          src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
-          width="352"
+          src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0&autoplay=1`}
+          width="300"
           height="80"
-          style={{ borderRadius: 12, border: 'none' }}
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          allow="autoplay; clipboard-write; encrypted-media"
           loading="eager"
+          title="Spotify Playlist"
         />
       </div>
 
