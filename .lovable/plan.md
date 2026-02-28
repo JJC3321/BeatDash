@@ -1,55 +1,46 @@
 
-# 🎮 Spotify-Powered AI Game Generator
+# Make Music Drive the Game
 
 ## Overview
-A polished web app where users input a Spotify playlist URL, the app analyzes the playlist's audio characteristics, sends them to Gemini AI, and Gemini decides what type of game to generate along with its configuration. The game is then rendered using Excalibur.js embedded in a React UI.
+Right now the game is generated based only on the playlist **name**. We'll enhance this to actually analyze the playlist's real music data from Spotify and use those metrics to directly influence gameplay mechanics.
 
-## Page 1: Landing / Input Page
-- Eye-catching hero section with animated visuals
-- Input field for Spotify playlist URL/ID
-- "Generate Game" button
-- Brief explanation of how it works (3-step visual: Analyze → AI Generate → Play)
+## What Changes
 
-## Page 2: Loading / Generation Screen
-- Animated loading state showing progress:
-  - Step 1: "Analyzing your playlist..." (fetching Spotify data)
-  - Step 2: "AI is designing your game..." (Gemini processing)
-  - Step 3: "Building your world..." (engine setup)
-- Display playlist info (name, track count, cover art) while loading
+### 1. Add Spotify API Credentials
+The project already has a `spotify-analyze` backend function that fetches real audio features (tempo, energy, danceability, etc.) from Spotify. However, it requires **Spotify API credentials** (Client ID and Client Secret) which are not yet configured. You'll need to provide these -- they're free to get from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 
-## Page 3: Game Screen
-- Full-screen Excalibur.js canvas embedded in React
-- HUD overlay showing: score, playlist name, current track info
-- Pause menu with option to regenerate or go back
-- Game over screen with score and "Try Another Playlist" button
+### 2. Update the Generation Flow
+When a user pastes a playlist URL:
+1. **Step 1 -- Analyze**: Call the existing `spotify-analyze` function to get real metrics (tempo, energy, valence, danceability, acousticness)
+2. **Step 2 -- Generate**: Pass those real metrics to the AI so it designs a game based on actual music characteristics, not just the name
+3. **Step 3 -- Play**: Feed the metrics into the game engine so gameplay responds to the music's properties
 
-## Game Mechanics (AI-Selectable Templates)
-Gemini will choose from and configure these predefined game templates based on playlist mood:
-- **Platformer** — jump between platforms, collect items (for energetic/upbeat playlists)
-- **Dodge/Survive** — avoid falling/spawning obstacles (for intense/high-energy playlists)
-- **Chill Collector** — float and collect particles in a relaxed environment (for calm/acoustic playlists)
-- **Rhythm Runner** — auto-scroll runner where tempo drives speed (for rhythmic playlists)
+### 3. Music-Driven Gameplay Mechanics
+The game engine will use real playlist metrics to control gameplay:
 
-AI configures: gravity, speed, spawn rates, color palette, enemy types, background theme, difficulty
+| Music Feature | Game Effect |
+|---|---|
+| **Tempo (BPM)** | Controls obstacle/spawn speed -- faster songs = faster obstacles |
+| **Energy** | Controls difficulty and chaos -- high energy = more enemies, less predictable patterns |
+| **Danceability** | Controls rhythmic spawn patterns -- high danceability = enemies spawn in rhythmic waves |
+| **Valence** (happiness) | Controls visual effects -- happy = brighter particles/effects, sad = darker, moodier |
+| **Acousticness** | Controls game gentleness -- acoustic = slower, floatier physics |
 
-## Backend (Lovable Cloud Edge Functions)
-- **Spotify edge function**: Handles Spotify API authentication (Client Credentials flow) and fetches playlist audio features (tempo, energy, valence, acousticness, danceability)
-- **Gemini edge function**: Takes playlist metrics, sends structured prompt to Gemini, returns validated game configuration JSON
+### 4. Enhanced AI Prompt
+Update the AI prompt to receive real Spotify audio features and design the game around them, with explicit instructions to make the game feel like the music (e.g., "This playlist has 140 BPM average tempo and 0.8 energy -- design an intense, fast-paced game").
 
-## Data Flow
-1. User enters playlist URL → frontend extracts playlist ID
-2. Frontend calls Spotify edge function → returns aggregated playlist metrics
-3. Frontend calls Gemini edge function with metrics → returns game configuration (game type, physics, visuals, difficulty)
-4. Frontend initializes Excalibur.js with the configuration → game starts
+### 5. Visual Beat Indicators
+Add subtle visual pulses in the game background that sync with the playlist's average tempo, creating a feeling that the game world is alive with the music's rhythm.
 
-## Tech Details
-- Excalibur.js integrated via React ref/useEffect pattern
-- Spotify API key stored as Lovable Cloud secret
-- Gemini API key stored as Lovable Cloud secret
-- Structured output via Gemini's responseSchema for reliable JSON
+## Technical Details
 
-## Polish
-- Smooth transitions between screens
-- Responsive design (though game is best on desktop)
-- Toast notifications for errors (invalid playlist, API failures)
-- Dark-themed UI fitting the gaming aesthetic
+### Files Modified
+- **`src/pages/Index.tsx`** -- Add spotify-analyze call before gemini-generate; pass metrics through
+- **`supabase/functions/gemini-generate/index.ts`** -- Update prompt to receive and use real audio features
+- **`src/game/engine.ts`** -- Add tempo-based spawn patterns, energy-based difficulty scaling, background pulse effect tied to BPM
+- **`src/types/game.ts`** -- Add `PlaylistMetrics` to `GameConfiguration` so the engine has access to music data
+- **`src/components/screens/LoadingScreen.tsx`** -- Add a "Spotify analysis" loading step
+
+### Secrets Needed
+- `SPOTIFY_CLIENT_ID` -- from Spotify Developer Dashboard
+- `SPOTIFY_CLIENT_SECRET` -- from Spotify Developer Dashboard
