@@ -7,9 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 function extractPlaylistId(input: string): string | null {
+  // Handle full Spotify URLs (including share links with ?si= params)
   const urlMatch = input.match(/playlist\/([a-zA-Z0-9]+)/);
   if (urlMatch) return urlMatch[1];
-  if (/^[a-zA-Z0-9]{22}$/.test(input.trim())) return input.trim();
+  // Accept standalone playlist IDs (base-62, typically 22 chars but can vary)
+  if (/^[a-zA-Z0-9]{15,}$/.test(input.trim())) return input.trim();
   return null;
 }
 

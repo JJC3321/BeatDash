@@ -37,7 +37,6 @@ function generateFallbackMetrics(playlistId: string): Record<string, unknown> {
     hash |= 0;
   }
   const seed = Math.abs(hash);
-  const r = (min: number, max: number) => min + ((seed * (max - min)) % (max - min));
 
   return {
     playlistName: "Spotify Playlist",
@@ -102,62 +101,92 @@ serve(async (req) => {
       console.error("Playlist fetch error:", e);
     }
 
-    // If we got tracks, try to get audio features
+    // Estimate metrics from track metadata and artist genres
+    // Note: The audio-features endpoint was deprecated by Spotify in Nov 2024,
+    // so we derive metrics from available track data (popularity, duration, explicit, artist info).
     if (tracks.length > 0) {
-      const trackIds = tracks.map((t: any) => t.id).filter(Boolean);
+      // Collect unique artist IDs to fetch genre information
+      const artistIds = [...new Set(
+        tracks.flatMap((t: any) => (t.artists || []).map((a: any) => a.id)).filter(Boolean)
+      )].slice(0, 50) as string[];
 
-      if (trackIds.length > 0) {
+      let genres: string[] = [];
+      if (artistIds.length > 0) {
         try {
-          const featuresRes = await fetch(
-            `https://api.spotify.com/v1/audio-features?ids=${trackIds.join(",")}`,
+          // Fetch artists in batches of 50 to get genre info
+          const artistRes = await fetch(
+            `https://api.spotify.com/v1/artists?ids=${artistIds.join(",")}`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
-
-          if (featuresRes.ok) {
-            const features = await featuresRes.json();
-            const valid = (features.audio_features || []).filter(Boolean);
-
-            if (valid.length > 0) {
-              const avg = (key: string) =>
-                valid.reduce((sum: number, f: any) => sum + (f[key] || 0), 0) / valid.length;
-
-              return new Response(JSON.stringify({
-                playlistName,
-                playlistImage,
-                trackCount,
-                avgTempo: Math.round(avg("tempo")),
-                avgEnergy: Math.round(avg("energy") * 100) / 100,
-                avgValence: Math.round(avg("valence") * 100) / 100,
-                avgAcousticness: Math.round(avg("acousticness") * 100) / 100,
-                avgDanceability: Math.round(avg("danceability") * 100) / 100,
-                avgLoudness: Math.round(avg("loudness") * 10) / 10,
-              }), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              });
-            }
-          } else {
-            console.error("Audio features failed:", featuresRes.status);
+          if (artistRes.ok) {
+            const artistData = await artistRes.json();
+            genres = (artistData.artists || []).flatMap((a: any) => a.genres || []);
+            console.log(`Fetched ${genres.length} genre tags from ${artistIds.length} artists`);
           }
         } catch (e) {
-          console.error("Audio features error:", e);
+          console.error("Artist fetch error:", e);
         }
       }
 
-      // Fallback: estimate from track metadata (popularity/duration)
-      console.log("Using track metadata estimation");
+      // Compute metrics from track metadata + genre signals
       const avgPop = tracks.reduce((s: number, t: any) => s + (t.popularity || 50), 0) / tracks.length;
       const avgDur = tracks.reduce((s: number, t: any) => s + (t.duration_ms || 200000), 0) / tracks.length;
+      const explicitRatio = tracks.filter((t: any) => t.explicit).length / tracks.length;
 
+      // Genre-based adjustments
+      const genreStr = genres.join(" ").toLowerCase();
+      const isElectronic = /edm|electro|house|techno|trance|dubstep|drum and bass|dnb/.test(genreStr);
+      const isAcoustic = /acoustic|folk|singer-songwriter|indie folk|country/.test(genreStr);
+      const isHiphop = /hip hop|rap|trap/.test(genreStr);
+      const isRock = /rock|metal|punk|grunge|alternative/.test(genreStr);
+      const isPop = /pop|dance pop|synth-pop/.test(genreStr);
+      const isClassical = /classical|orchestra|piano|ambient|new age/.test(genreStr);
+      const isLatin = /latin|reggaeton|salsa|bachata|cumbia/.test(genreStr);
+
+      // Tempo estimation: shorter songs tend to be faster; genre adjustments
+      let tempoEst = 80 + (300000 - Math.min(avgDur, 300000)) / 300000 * 80;
+      if (isElectronic) tempoEst += 15;
+      if (isHiphop) tempoEst = Math.max(tempoEst, 90);
+      if (isLatin) tempoEst += 10;
+      if (isClassical) tempoEst -= 20;
+
+      // Energy: popularity + explicit content + genre signals
+      let energyEst = avgPop / 100 * 0.6 + 0.2;
+      if (isElectronic || isRock) energyEst += 0.15;
+      if (explicitRatio > 0.5) energyEst += 0.1;
+      if (isClassical || isAcoustic) energyEst -= 0.15;
+
+      // Valence (happiness): popularity + genre
+      let valenceEst = avgPop / 100 * 0.5 + 0.25;
+      if (isPop || isLatin) valenceEst += 0.1;
+      if (isRock && explicitRatio > 0.3) valenceEst -= 0.1;
+
+      // Acousticness: inverse of electronic signals
+      let acousticnessEst = isAcoustic ? 0.7 : isElectronic ? 0.1 : (1 - avgPop / 100) * 0.4 + 0.1;
+      if (isClassical) acousticnessEst = Math.max(acousticnessEst, 0.6);
+
+      // Danceability: genre + popularity
+      let danceabilityEst = avgPop / 100 * 0.5 + 0.25;
+      if (isElectronic || isLatin || isHiphop) danceabilityEst += 0.15;
+      if (isClassical || isAcoustic) danceabilityEst -= 0.15;
+
+      // Loudness: energy-correlated
+      const loudnessEst = -12 + energyEst * 8;
+
+      // Clamp all values to valid ranges
+      const clamp01 = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;
+
+      console.log("Using track metadata + genre estimation");
       return new Response(JSON.stringify({
         playlistName,
         playlistImage,
         trackCount,
-        avgTempo: Math.round(80 + (300000 - Math.min(avgDur, 300000)) / 300000 * 80),
-        avgEnergy: Math.min(1, Math.round((avgPop / 100 * 0.8 + 0.1) * 100) / 100),
-        avgValence: Math.min(1, Math.round((avgPop / 100 * 0.6 + 0.2) * 100) / 100),
-        avgAcousticness: Math.round((1 - avgPop / 100) * 0.5 * 100) / 100,
-        avgDanceability: Math.min(1, Math.round((avgPop / 100 * 0.7 + 0.15) * 100) / 100),
-        avgLoudness: Math.round((-12 + avgPop / 100 * 8) * 10) / 10,
+        avgTempo: Math.round(Math.max(60, Math.min(200, tempoEst))),
+        avgEnergy: clamp01(energyEst),
+        avgValence: clamp01(valenceEst),
+        avgAcousticness: clamp01(acousticnessEst),
+        avgDanceability: clamp01(danceabilityEst),
+        avgLoudness: Math.round(loudnessEst * 10) / 10,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
