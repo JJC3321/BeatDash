@@ -5,21 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface LandingScreenProps {
-  onGenerate: (playlistName: string) => void;
+  onGenerate: (playlistUrl: string) => void;
 }
 
 const steps = [
-  { icon: Music, label: "Name It", desc: "Tell us your playlist name" },
+  { icon: Music, label: "Paste", desc: "Share your Spotify playlist link" },
   { icon: Sparkles, label: "AI Generate", desc: "Gemini designs a unique game" },
-  { icon: Gamepad2, label: "Play", desc: "Jump into your custom world" },
+  { icon: Gamepad2, label: "Play", desc: "Play with your music" },
 ];
 
 const LandingScreen = ({ onGenerate }: LandingScreenProps) => {
-  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) onGenerate(name.trim());
+    if (url.trim()) onGenerate(url.trim());
   };
 
   return (
@@ -49,21 +49,21 @@ const LandingScreen = ({ onGenerate }: LandingScreenProps) => {
         </h1>
 
         <p className="text-muted-foreground text-lg md:text-xl mb-10 max-w-md mx-auto">
-          Drop your playlist name. AI builds you a game inspired by the vibe.
+          Paste a Spotify playlist link. AI builds a game and plays your music.
         </p>
 
         <form onSubmit={handleSubmit} className="flex gap-3 max-w-lg mx-auto mb-16">
           <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Late Night Vibes, Workout Bangers..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://open.spotify.com/playlist/..."
             className="h-14 text-base bg-muted/50 border-border/50 placeholder:text-muted-foreground/50 focus-visible:ring-primary"
           />
           <Button
             type="submit"
             size="lg"
             className="h-14 px-8 glow-primary font-semibold text-base gap-2"
-            disabled={!name.trim()}
+            disabled={!url.trim()}
           >
             Generate
             <ArrowRight className="w-4 h-4" />

@@ -9,12 +9,13 @@ import * as ex from "excalibur";
 interface GameScreenProps {
   config: GameConfiguration;
   playlistName: string;
+  playlistId: string;
   score: number;
   onScoreChange: (score: number) => void;
   onRestart: () => void;
 }
 
-const GameScreen = ({ config, playlistName, score, onScoreChange, onRestart }: GameScreenProps) => {
+const GameScreen = ({ config, playlistName, playlistId, score, onScoreChange, onRestart }: GameScreenProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<ex.Engine | null>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -83,6 +84,19 @@ const GameScreen = ({ config, playlistName, score, onScoreChange, onRestart }: G
             {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
           </Button>
         </div>
+      </div>
+
+      {/* Spotify Embed Player */}
+      <div className="absolute bottom-4 left-4 right-4 flex justify-center pointer-events-auto z-10">
+        <iframe
+          src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
+          width="100%"
+          height="80"
+          style={{ maxWidth: 400, borderRadius: 12 }}
+          frameBorder="0"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy"
+        />
       </div>
 
       {/* Pause Menu */}
