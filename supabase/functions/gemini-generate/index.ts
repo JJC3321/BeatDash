@@ -15,8 +15,8 @@ serve(async (req) => {
     const { playlistName, metrics } = await req.json();
     if (!playlistName) throw new Error("Missing playlist name");
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     // Build a rich prompt using real Spotify metrics if available
     let metricsBlock = "";
@@ -72,156 +72,136 @@ ASSET DESIGN - You MUST also design visual assets that match the music:
 - All colors should use hex format (#RRGGBB) and match the music mood
 - glowColor should be a bright/saturated version of the primaryColor`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-pro-preview",
-        messages: [
-          { role: "system", content: "You are a creative game designer. Always use the provided tool to return structured game configurations. The game MUST reflect the music's real audio characteristics." },
-          { role: "user", content: prompt },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "create_game_config",
-              description: "Create a game configuration based on playlist mood analysis",
-              parameters: {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const toolDeclaration = {
+      name: "create_game_config",
+      description: "Create a game configuration based on playlist mood analysis",
+      parameters: {
+        type: "object",
+        properties: {
+          gameType: { type: "string", enum: ["platformer", "dodge", "collector", "runner"] },
+          title: { type: "string" },
+          description: { type: "string" },
+          gravity: { type: "number" },
+          playerSpeed: { type: "number" },
+          spawnRateMs: { type: "number" },
+          difficulty: { type: "number" },
+          colorPalette: {
+            type: "object",
+            properties: {
+              background: { type: "string" },
+              player: { type: "string" },
+              enemies: { type: "string" },
+              collectibles: { type: "string" },
+              platforms: { type: "string" },
+              accent: { type: "string" },
+            },
+            required: ["background", "player", "enemies", "collectibles", "platforms", "accent"],
+          },
+          enemyTypes: { type: "array", items: { type: "string" } },
+          backgroundTheme: { type: "string" },
+          musicInfluence: { type: "string" },
+          assets: {
+            type: "object",
+            properties: {
+              player: {
                 type: "object",
                 properties: {
-                  gameType: { type: "string", enum: ["platformer", "dodge", "collector", "runner"] },
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  gravity: { type: "number" },
-                  playerSpeed: { type: "number" },
-                  spawnRateMs: { type: "number" },
-                  difficulty: { type: "number" },
-                  colorPalette: {
-                    type: "object",
-                    properties: {
-                      background: { type: "string" },
-                      player: { type: "string" },
-                      enemies: { type: "string" },
-                      collectibles: { type: "string" },
-                      platforms: { type: "string" },
-                      accent: { type: "string" },
-                    },
-                    required: ["background", "player", "enemies", "collectibles", "platforms", "accent"],
-                    additionalProperties: false,
-                  },
-                  enemyTypes: { type: "array", items: { type: "string" } },
-                  backgroundTheme: { type: "string" },
-                  musicInfluence: { type: "string" },
-                  assets: {
-                    type: "object",
-                    description: "Visual asset descriptions for procedural sprite generation",
-                    properties: {
-                      player: {
-                        type: "object",
-                        properties: {
-                          shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
-                          primaryColor: { type: "string" },
-                          secondaryColor: { type: "string" },
-                          glowColor: { type: "string" },
-                          style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
-                          eyes: { type: "boolean" },
-                        },
-                        required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
-                        additionalProperties: false,
-                      },
-                      enemies: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
-                            primaryColor: { type: "string" },
-                            secondaryColor: { type: "string" },
-                            glowColor: { type: "string" },
-                            style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
-                            eyes: { type: "boolean" },
-                          },
-                          required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
-                          additionalProperties: false,
-                        },
-                      },
-                      collectible: {
-                        type: "object",
-                        properties: {
-                          shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
-                          primaryColor: { type: "string" },
-                          secondaryColor: { type: "string" },
-                          glowColor: { type: "string" },
-                          style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
-                          eyes: { type: "boolean" },
-                        },
-                        required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
-                        additionalProperties: false,
-                      },
-                      platform: {
-                        type: "object",
-                        properties: {
-                          style: { type: "string", enum: ["solid", "gradient", "striped", "glowing"] },
-                          primaryColor: { type: "string" },
-                          accentColor: { type: "string" },
-                        },
-                        required: ["style", "primaryColor", "accentColor"],
-                        additionalProperties: false,
-                      },
-                      background: {
-                        type: "object",
-                        properties: {
-                          particleColor: { type: "string" },
-                          particleShape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
-                          particleCount: { type: "number" },
-                          starfield: { type: "boolean" },
-                          ambientColor: { type: "string" },
-                        },
-                        required: ["particleColor", "particleShape", "particleCount", "starfield", "ambientColor"],
-                        additionalProperties: false,
-                      },
-                    },
-                    required: ["player", "enemies", "collectible", "platform", "background"],
-                    additionalProperties: false,
-                  },
+                  shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                  primaryColor: { type: "string" },
+                  secondaryColor: { type: "string" },
+                  glowColor: { type: "string" },
+                  style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
+                  eyes: { type: "boolean" },
                 },
-                required: ["gameType", "title", "description", "gravity", "playerSpeed", "spawnRateMs", "difficulty", "colorPalette", "enemyTypes", "backgroundTheme", "musicInfluence", "assets"],
-                additionalProperties: false,
+                required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
+              },
+              enemies: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                    primaryColor: { type: "string" },
+                    secondaryColor: { type: "string" },
+                    glowColor: { type: "string" },
+                    style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
+                    eyes: { type: "boolean" },
+                  },
+                  required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
+                },
+              },
+              collectible: {
+                type: "object",
+                properties: {
+                  shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                  primaryColor: { type: "string" },
+                  secondaryColor: { type: "string" },
+                  glowColor: { type: "string" },
+                  style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
+                  eyes: { type: "boolean" },
+                },
+                required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
+              },
+              platform: {
+                type: "object",
+                properties: {
+                  style: { type: "string", enum: ["solid", "gradient", "striped", "glowing"] },
+                  primaryColor: { type: "string" },
+                  accentColor: { type: "string" },
+                },
+                required: ["style", "primaryColor", "accentColor"],
+              },
+              background: {
+                type: "object",
+                properties: {
+                  particleColor: { type: "string" },
+                  particleShape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                  particleCount: { type: "number" },
+                  starfield: { type: "boolean" },
+                  ambientColor: { type: "string" },
+                },
+                required: ["particleColor", "particleShape", "particleCount", "starfield", "ambientColor"],
               },
             },
+            required: ["player", "enemies", "collectible", "platform", "background"],
           },
-        ],
-        tool_choice: { type: "function", function: { name: "create_game_config" } },
+        },
+        required: ["gameType", "title", "description", "gravity", "playerSpeed", "spawnRateMs", "difficulty", "colorPalette", "enemyTypes", "backgroundTheme", "musicInfluence", "assets"],
+      },
+    };
+
+    const res = await fetch(geminiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: "You are a creative game designer. Always use the provided tool to return structured game configurations. The game MUST reflect the music's real audio characteristics." }],
+        },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        tools: [{ function_declarations: [toolDeclaration] }],
+        tool_config: { function_calling_config: { mode: "ANY", allowed_function_names: ["create_game_config"] } },
       }),
     });
 
     if (!res.ok) {
+      const errText = await res.text();
+      console.error("Gemini API error:", res.status, errText);
       if (res.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (res.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const errText = await res.text();
-      console.error("AI gateway error:", res.status, errText);
-      throw new Error(`AI error: ${res.status}`);
+      throw new Error(`Gemini API error: ${res.status}`);
     }
 
     const data = await res.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call response from AI");
+    const functionCall = data.candidates?.[0]?.content?.parts?.find((p: any) => p.functionCall)?.functionCall;
+    if (!functionCall) throw new Error("No function call response from Gemini");
 
-    const gameConfig = JSON.parse(toolCall.function.arguments);
+    const gameConfig = functionCall.args;
 
     // Clamp values
     gameConfig.gravity = Math.max(0.5, Math.min(2.0, gameConfig.gravity));
