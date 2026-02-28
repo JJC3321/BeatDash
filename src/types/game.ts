@@ -31,6 +31,7 @@ export interface GameConfiguration {
   enemyTypes: string[];
   backgroundTheme: string;
   musicInfluence: string; // AI's reasoning
+  metrics?: PlaylistMetrics; // Real Spotify audio features
 }
 
 export type AppScreen = "landing" | "loading" | "game";
@@ -44,4 +45,4 @@ export interface AppState {
   isGameOver: boolean;
 }
 
-export type LoadingStep = "gemini" | "engine";
+export type LoadingStep = "spotify" | "gemini" | "engine";

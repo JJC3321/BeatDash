@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { AppScreen, GameConfiguration } from "@/types/game";
+import { AppScreen, GameConfiguration, PlaylistMetrics, LoadingStep } from "@/types/game";
 import LandingScreen from "@/components/screens/LandingScreen";
 import LoadingScreen from "@/components/screens/LoadingScreen";
 import GameScreen from "@/components/screens/GameScreen";
@@ -19,7 +19,7 @@ const Index = () => {
   const [playlistName, setPlaylistName] = useState("");
   const [gameConfig, setGameConfig] = useState<GameConfiguration | null>(null);
   const [score, setScore] = useState(0);
-  const [loadingStep, setLoadingStep] = useState<"gemini" | "engine">("gemini");
+  const [loadingStep, setLoadingStep] = useState<LoadingStep>("spotify");
 
   const handleGenerate = useCallback(async (url: string) => {
     const id = extractPlaylistId(url);
@@ -29,23 +29,36 @@ const Index = () => {
     }
 
     setPlaylistId(id);
-    // Use the URL slug as a rough playlist name for the AI
-    const nameFromUrl = url.split("/").pop()?.split("?")[0] || "My Playlist";
-    setPlaylistName(nameFromUrl);
     setScreen("loading");
-    setLoadingStep("gemini");
+    setLoadingStep("spotify");
 
     try {
+      // Step 1: Analyze playlist with Spotify API
+      const { data: metricsData, error: metricsError } = await supabase.functions.invoke("spotify-analyze", {
+        body: { playlistId: id },
+      });
+
+      if (metricsError || !metricsData) {
+        throw new Error(metricsError?.message || "Failed to analyze playlist");
+      }
+
+      const metrics = metricsData as PlaylistMetrics;
+      setPlaylistName(metrics.playlistName || "My Playlist");
+      setLoadingStep("gemini");
+
+      // Step 2: Generate game config using real metrics
       const { data: geminiData, error: geminiError } = await supabase.functions.invoke("gemini-generate", {
-        body: { playlistName: nameFromUrl },
+        body: { playlistName: metrics.playlistName, metrics },
       });
 
       if (geminiError || !geminiData) {
         throw new Error(geminiError?.message || "Failed to generate game");
       }
 
-      setGameConfig(geminiData as GameConfiguration);
-      setPlaylistName(geminiData.title || nameFromUrl);
+      const config = geminiData as GameConfiguration;
+      config.metrics = metrics; // Attach metrics for the engine
+      setGameConfig(config);
+      setPlaylistName(config.title || metrics.playlistName);
       setLoadingStep("engine");
 
       await new Promise((r) => setTimeout(r, 1200));
@@ -66,7 +79,7 @@ const Index = () => {
   }, []);
 
   if (screen === "loading") {
-    return <LoadingScreen step={loadingStep} playlistName={playlistName} />;
+    return <LoadingScreen step={loadingStep} playlistName={playlistName || "Analyzing..."} />;
   }
 
   if (screen === "game" && gameConfig) {
