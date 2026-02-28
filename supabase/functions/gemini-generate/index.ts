@@ -12,24 +12,53 @@ serve(async (req) => {
   }
 
   try {
-    const { playlistName } = await req.json();
+    const { playlistName, metrics } = await req.json();
     if (!playlistName) throw new Error("Missing playlist name");
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const prompt = `You are a game designer AI. Based on the playlist name below, imagine what kind of music it contains and design a game that matches the vibe.
+    // Build a rich prompt using real Spotify metrics if available
+    let metricsBlock = "";
+    if (metrics) {
+      metricsBlock = `
+REAL SPOTIFY AUDIO ANALYSIS:
+- Average Tempo: ${metrics.avgTempo} BPM
+- Energy: ${metrics.avgEnergy} (0=calm, 1=intense)
+- Danceability: ${metrics.avgDanceability} (0=not danceable, 1=very danceable)
+- Valence (happiness): ${metrics.avgValence} (0=sad/dark, 1=happy/bright)
+- Acousticness: ${metrics.avgAcousticness} (0=electronic, 1=acoustic)
+- Loudness: ${metrics.avgLoudness} dB
+- Track count: ${metrics.trackCount}
+
+USE THESE REAL METRICS to design the game. The game MUST feel like the music:
+- High tempo (>130 BPM) → fast spawn rates (500-1000ms), high player speed
+- Low tempo (<100 BPM) → slow spawn rates (2000-3000ms), gentle movement
+- High energy (>0.7) → aggressive enemies, high difficulty (7-10), chaotic spawns
+- Low energy (<0.3) → fewer enemies, low difficulty (1-4), peaceful gameplay
+- High danceability (>0.7) → "runner" game type with rhythmic patterns
+- High acousticness (>0.6) → "collector" game type with floaty, gentle physics (low gravity 0.5-0.8)
+- Low valence (<0.3) → dark moody colors, "dodge" game type
+- High valence (>0.7) → bright vibrant colors, "platformer" or "collector"
+- Map tempo directly: spawnRateMs ≈ 60000 / tempo (one spawn per beat)
+- Map energy to difficulty: difficulty ≈ energy * 10
+- Map acousticness to gravity: gravity ≈ 2.0 - (acousticness * 1.5)`;
+    }
+
+    const prompt = `You are a game designer AI. Design a game that is DIRECTLY DRIVEN by this playlist's music characteristics.
 
 Playlist: "${playlistName}"
+${metricsBlock}
 
-Infer the mood, energy, tempo, and style from the playlist name. Then choose a game type:
+Game types available:
 - "platformer" for energetic/upbeat vibes
-- "dodge" for intense/aggressive/dark vibes
+- "dodge" for intense/aggressive/dark vibes  
 - "collector" for calm/chill/acoustic vibes
 - "runner" for rhythmic/danceable/groovy vibes
 
-Configure gravity (0.5-2.0), playerSpeed (100-400), spawnRateMs (500-3000, lower=harder), difficulty (1-10).
-Use a dark background color. Make the color palette cohesive and mood-matching. Be creative with the title (max 30 chars).`;
+Configure: gravity (0.5-2.0), playerSpeed (100-400), spawnRateMs (500-3000, lower=harder), difficulty (1-10).
+Use a dark background color. Make the color palette match the music's mood. Be creative with the title (max 30 chars).
+In musicInfluence, explain HOW the music metrics shaped your game design decisions.`;
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -40,7 +69,7 @@ Use a dark background color. Make the color palette cohesive and mood-matching. 
       body: JSON.stringify({
         model: "google/gemini-3-pro-preview",
         messages: [
-          { role: "system", content: "You are a creative game designer. Always use the provided tool to return structured game configurations." },
+          { role: "system", content: "You are a creative game designer. Always use the provided tool to return structured game configurations. The game MUST reflect the music's real audio characteristics." },
           { role: "user", content: prompt },
         ],
         tools: [
