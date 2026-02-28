@@ -59,10 +59,6 @@ serve(async (req) => {
       .slice(0, 50);
 
     if (tracks.length === 0) throw new Error("No tracks found in playlist");
-      .filter(Boolean)
-      .slice(0, 50);
-
-    if (tracks.length === 0) throw new Error("No tracks found in playlist");
 
     const trackIds = tracks.map((t: any) => t.id).filter(Boolean);
 
