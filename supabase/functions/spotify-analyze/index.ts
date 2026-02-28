@@ -41,8 +41,9 @@ serve(async (req) => {
     const token = await getSpotifyToken();
 
     // Fetch playlist info
+    // Fetch playlist basic info
     const playlistRes = await fetch(
-      `https://api.spotify.com/v1/playlists/${playlistId}`,
+      `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images,tracks.total`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!playlistRes.ok) {
@@ -52,11 +53,21 @@ serve(async (req) => {
     }
     const playlist = await playlistRes.json();
 
-    const trackItems = playlist?.tracks?.items || [];
-    const tracks = trackItems
-      .map((item: any) => item?.track)
-      .filter(Boolean)
-      .slice(0, 50);
+    // Fetch tracks separately using the tracks endpoint (more reliable)
+    const tracksRes = await fetch(
+      `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,duration_ms,popularity))`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!tracksRes.ok) {
+      const errText = await tracksRes.text();
+      console.error("Tracks fetch error:", tracksRes.status, errText);
+      throw new Error(`Failed to fetch tracks: ${tracksRes.status}`);
+    }
+    const tracksData = await tracksRes.json();
+    console.log("Tracks response keys:", Object.keys(tracksData), "items count:", tracksData?.items?.length);
+
+    const trackItems = tracksData?.items || [];
+    const tracks = trackItems.map((item: any) => item?.track).filter(Boolean).slice(0, 50);
 
     if (tracks.length === 0) throw new Error("No tracks found in playlist");
 
