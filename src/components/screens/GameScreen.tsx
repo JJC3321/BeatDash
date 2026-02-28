@@ -89,7 +89,7 @@ const GameScreen = ({ config, playlistName, playlistId, score, onScoreChange, on
       {/* Spotify Embed Player */}
       <div className="absolute bottom-4 left-4 right-4 flex justify-center pointer-events-auto z-10">
         <iframe
-          src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
+          src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0&autoplay=1`}
           width="100%"
           height="80"
           style={{ maxWidth: 400, borderRadius: 12 }}
