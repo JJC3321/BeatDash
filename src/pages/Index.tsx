@@ -5,6 +5,7 @@ import LoadingScreen from "@/components/screens/LoadingScreen";
 import GameScreen from "@/components/screens/GameScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getDefaultAssets } from "@/game/assets";
 
 function extractPlaylistId(input: string): string | null {
   const urlMatch = input.match(/playlist\/([a-zA-Z0-9]+)/);
@@ -57,11 +58,20 @@ const Index = () => {
 
       const config = geminiData as GameConfiguration;
       config.metrics = metrics; // Attach metrics for the engine
-      setGameConfig(config);
       setPlaylistName(config.title || metrics.playlistName);
+      setLoadingStep("assets");
+
+      // Step 3: Generate game assets from AI descriptions (or defaults)
+      await new Promise((r) => setTimeout(r, 400));
+      if (!config.assets || !config.assets.player || !config.assets.enemies?.length) {
+        config.assets = getDefaultAssets(config.colorPalette);
+      }
+
+      setGameConfig(config);
       setLoadingStep("engine");
 
-      await new Promise((r) => setTimeout(r, 1200));
+      // Step 4: Build game world
+      await new Promise((r) => setTimeout(r, 800));
       setScreen("game");
     } catch (err: any) {
       console.error("Generation error:", err);

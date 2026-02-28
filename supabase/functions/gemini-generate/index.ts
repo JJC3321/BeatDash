@@ -58,7 +58,19 @@ Game types available:
 
 Configure: gravity (0.5-2.0), playerSpeed (100-400), spawnRateMs (500-3000, lower=harder), difficulty (1-10).
 Use a dark background color. Make the color palette match the music's mood. Be creative with the title (max 30 chars).
-In musicInfluence, explain HOW the music metrics shaped your game design decisions.`;
+In musicInfluence, explain HOW the music metrics shaped your game design decisions.
+
+ASSET DESIGN - You MUST also design visual assets that match the music:
+- Player shape: use "circle" or "hexagon" for chill music, "star" or "bolt" for energetic, "diamond" for elegant
+- Player style: "neon" for electronic, "gradient" for pop, "solid" for rock, "outlined" for acoustic
+- Player eyes: true for fun/happy music, false for dark/intense
+- Enemies: design 2-3 enemy types with threatening shapes ("triangle", "diamond", "crescent", "bolt")
+- Enemy style: "neon" for electronic enemies, "solid" for heavy, match glowColor to enemies palette color
+- Collectible: use "star" or "circle" with bright glow, "neon" or "gradient" style
+- Platform style: "glowing" for electronic, "gradient" for pop, "striped" for rock, "solid" for acoustic
+- Background: more particles (30-40) for energetic music, fewer (10-15) for calm; starfield=true for spacey/ambient
+- All colors should use hex format (#RRGGBB) and match the music mood
+- glowColor should be a bright/saturated version of the primaryColor`;
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -104,8 +116,80 @@ In musicInfluence, explain HOW the music metrics shaped your game design decisio
                   enemyTypes: { type: "array", items: { type: "string" } },
                   backgroundTheme: { type: "string" },
                   musicInfluence: { type: "string" },
+                  assets: {
+                    type: "object",
+                    description: "Visual asset descriptions for procedural sprite generation",
+                    properties: {
+                      player: {
+                        type: "object",
+                        properties: {
+                          shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                          primaryColor: { type: "string" },
+                          secondaryColor: { type: "string" },
+                          glowColor: { type: "string" },
+                          style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
+                          eyes: { type: "boolean" },
+                        },
+                        required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
+                        additionalProperties: false,
+                      },
+                      enemies: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                            primaryColor: { type: "string" },
+                            secondaryColor: { type: "string" },
+                            glowColor: { type: "string" },
+                            style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
+                            eyes: { type: "boolean" },
+                          },
+                          required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
+                          additionalProperties: false,
+                        },
+                      },
+                      collectible: {
+                        type: "object",
+                        properties: {
+                          shape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                          primaryColor: { type: "string" },
+                          secondaryColor: { type: "string" },
+                          glowColor: { type: "string" },
+                          style: { type: "string", enum: ["solid", "outlined", "gradient", "neon"] },
+                          eyes: { type: "boolean" },
+                        },
+                        required: ["shape", "primaryColor", "secondaryColor", "glowColor", "style", "eyes"],
+                        additionalProperties: false,
+                      },
+                      platform: {
+                        type: "object",
+                        properties: {
+                          style: { type: "string", enum: ["solid", "gradient", "striped", "glowing"] },
+                          primaryColor: { type: "string" },
+                          accentColor: { type: "string" },
+                        },
+                        required: ["style", "primaryColor", "accentColor"],
+                        additionalProperties: false,
+                      },
+                      background: {
+                        type: "object",
+                        properties: {
+                          particleColor: { type: "string" },
+                          particleShape: { type: "string", enum: ["circle", "diamond", "triangle", "star", "hexagon", "crescent", "bolt"] },
+                          particleCount: { type: "number" },
+                          starfield: { type: "boolean" },
+                          ambientColor: { type: "string" },
+                        },
+                        required: ["particleColor", "particleShape", "particleCount", "starfield", "ambientColor"],
+                        additionalProperties: false,
+                      },
+                    },
+                    required: ["player", "enemies", "collectible", "platform", "background"],
+                    additionalProperties: false,
+                  },
                 },
-                required: ["gameType", "title", "description", "gravity", "playerSpeed", "spawnRateMs", "difficulty", "colorPalette", "enemyTypes", "backgroundTheme", "musicInfluence"],
+                required: ["gameType", "title", "description", "gravity", "playerSpeed", "spawnRateMs", "difficulty", "colorPalette", "enemyTypes", "backgroundTheme", "musicInfluence", "assets"],
                 additionalProperties: false,
               },
             },

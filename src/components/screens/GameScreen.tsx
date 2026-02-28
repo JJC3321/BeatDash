@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Pause, Play, RotateCcw, Home, Trophy } from "lucide-react";
+import { Pause, Play, RotateCcw, Home, Trophy, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GameConfiguration } from "@/types/game";
 import { createGame } from "@/game/engine";
@@ -20,6 +20,7 @@ const GameScreen = ({ config, playlistName, playlistId, score, onScoreChange, on
   const engineRef = useRef<ex.Engine | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [showPlayer, setShowPlayer] = useState(true);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -86,19 +87,37 @@ const GameScreen = ({ config, playlistName, playlistId, score, onScoreChange, on
         </div>
       </div>
 
-      {/* Hidden Spotify player - zero size + opacity 0 keeps it in DOM for autoplay */}
-      <div
-        style={{ width: 0, height: 0, opacity: 0, overflow: 'hidden', position: 'absolute', bottom: 0, left: 0 }}
-        aria-hidden="true"
-      >
-        <iframe
-          src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0&autoplay=1`}
-          width="300"
-          height="80"
-          allow="autoplay; clipboard-write; encrypted-media"
-          loading="eager"
-          title="Spotify Playlist"
-        />
+      {/* Spotify mini-player — must be visible for browser to allow autoplay */}
+      <div className="absolute bottom-4 left-4 z-10 pointer-events-auto flex items-end gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowPlayer((v) => !v)}
+          className="glass rounded-xl w-10 h-10"
+          title={showPlayer ? "Hide player" : "Show player"}
+        >
+          <Music className="w-4 h-4" />
+        </Button>
+        <div
+          style={{
+            width: showPlayer ? 300 : 0,
+            height: showPlayer ? 80 : 0,
+            opacity: showPlayer ? 1 : 0,
+            overflow: 'hidden',
+            transition: 'all 0.3s ease',
+          }}
+          className="rounded-xl shadow-lg"
+        >
+          <iframe
+            src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0&autoplay=1`}
+            width="300"
+            height="80"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="eager"
+            title="Spotify Playlist"
+            style={{ borderRadius: '12px', border: 'none' }}
+          />
+        </div>
       </div>
 
       {/* Pause Menu */}

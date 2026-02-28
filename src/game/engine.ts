@@ -1,15 +1,51 @@
 import * as ex from "excalibur";
-import { GameConfiguration } from "@/types/game";
+import { GameConfiguration, AssetDescriptions } from "@/types/game";
+import { renderSprite, renderPlatform, addBackgroundParticles, getDefaultAssets } from "@/game/assets";
 
 interface GameCallbacks {
   onScore: (score: number) => void;
   onGameOver: (finalScore: number) => void;
 }
 
-/** Create a BPM-synced background pulse overlay */
+// ─── Music helpers ───────────────────────────────────────────────
+
+function getBpm(config: GameConfiguration): number {
+  return config.metrics?.avgTempo || 120;
+}
+
+function getBeatMs(config: GameConfiguration): number {
+  return 60000 / getBpm(config);
+}
+
+function getMusicSpawnRate(config: GameConfiguration): number {
+  if (!config.metrics) return config.spawnRateMs;
+  const beatMs = getBeatMs(config);
+  const energy = config.metrics.avgEnergy;
+  const energyMultiplier = 1.5 - energy;
+  return Math.max(400, Math.min(3000, beatMs * energyMultiplier));
+}
+
+function getMusicSpeedMultiplier(config: GameConfiguration): number {
+  if (!config.metrics) return 1;
+  const tempoFactor = config.metrics.avgTempo / 120;
+  return tempoFactor * (0.7 + config.metrics.avgEnergy * 0.6);
+}
+
+function getMusicGravity(config: GameConfiguration): number {
+  if (!config.metrics) return config.gravity;
+  return config.gravity * (1.2 - config.metrics.avgAcousticness * 0.7);
+}
+
+// ─── Scene setup helpers ─────────────────────────────────────────
+
+function getAssets(config: GameConfiguration): AssetDescriptions {
+  return config.assets || getDefaultAssets(config.colorPalette);
+}
+
+/** BPM-synced background pulse overlay */
 function addBeatPulse(engine: ex.Engine, scene: ex.Scene, config: GameConfiguration) {
-  const bpm = config.metrics?.avgTempo || 120;
-  const beatInterval = 60000 / bpm; // ms per beat
+  const beatInterval = getBeatMs(config);
+  const energy = config.metrics?.avgEnergy || 0.5;
 
   const pulseOverlay = new ex.Actor({
     x: engine.drawWidth / 2,
@@ -22,10 +58,19 @@ function addBeatPulse(engine: ex.Engine, scene: ex.Scene, config: GameConfigurat
   pulseOverlay.graphics.opacity = 0;
   scene.add(pulseOverlay);
 
+  let beatCount = 0;
   const pulseTimer = new ex.Timer({
     fcn: () => {
-      pulseOverlay.graphics.opacity = 0.08;
+      beatCount++;
+      const intensity = 0.04 + energy * 0.06;
+      pulseOverlay.graphics.opacity = intensity;
       pulseOverlay.actions.fade(0, beatInterval * 0.8);
+
+      // Screen shake on every 4th beat scaled by energy
+      if (beatCount % 4 === 0 && energy > 0.5) {
+        const shakeAmt = (energy - 0.5) * 6;
+        scene.camera.shake(shakeAmt, shakeAmt, beatInterval * 0.3);
+      }
     },
     interval: beatInterval,
     repeats: true,
@@ -34,34 +79,21 @@ function addBeatPulse(engine: ex.Engine, scene: ex.Scene, config: GameConfigurat
   pulseTimer.start();
 }
 
-/** Get music-driven spawn rate: one obstacle per beat, scaled by energy */
-function getMusicSpawnRate(config: GameConfiguration): number {
-  if (!config.metrics) return config.spawnRateMs;
-  const bpm = config.metrics.avgTempo;
-  const energy = config.metrics.avgEnergy;
-  // Base: one spawn per beat, made faster by energy
-  const beatMs = 60000 / bpm;
-  const energyMultiplier = 1.5 - energy; // high energy = faster spawns
-  return Math.max(400, Math.min(3000, beatMs * energyMultiplier));
+/** Set up the full visual scene: particles + beat pulse */
+function setupSceneVisuals(engine: ex.Engine, scene: ex.Scene, config: GameConfiguration) {
+  const assets = getAssets(config);
+  addBeatPulse(engine, scene, config);
+  addBackgroundParticles(engine, scene, assets.background, getBpm(config));
 }
 
-/** Get music-driven obstacle speed multiplier */
-function getMusicSpeedMultiplier(config: GameConfiguration): number {
-  if (!config.metrics) return 1;
-  const tempo = config.metrics.avgTempo;
-  const energy = config.metrics.avgEnergy;
-  // Normalize tempo: 80 BPM → 0.7x, 120 → 1.0x, 160 → 1.3x
-  const tempoFactor = tempo / 120;
-  return tempoFactor * (0.7 + energy * 0.6);
+/** Apply the rotation animation driven by BPM */
+function addBeatRotation(actor: ex.Actor, config: GameConfiguration) {
+  const bpm = getBpm(config);
+  const rotSpeed = (bpm / 120) * 1.5; // radians per second
+  actor.angularVelocity = rotSpeed;
 }
 
-/** Get gravity based on acousticness (acoustic = floaty) */
-function getMusicGravity(config: GameConfiguration): number {
-  if (!config.metrics) return config.gravity;
-  const acousticness = config.metrics.avgAcousticness;
-  // Acoustic music → lower gravity (floatier), electronic → heavier
-  return config.gravity * (1.2 - acousticness * 0.7);
-}
+// ─── Main entry ──────────────────────────────────────────────────
 
 export function createGame(
   canvas: HTMLCanvasElement,
@@ -78,12 +110,10 @@ export function createGame(
   });
 
   let score = 0;
-
   const addScore = (points: number) => {
     score += points;
     callbacks.onScore(score);
   };
-
   const gameOver = () => {
     callbacks.onGameOver(score);
   };
@@ -108,6 +138,8 @@ export function createGame(
   return engine;
 }
 
+// ─── Platformer ──────────────────────────────────────────────────
+
 function setupPlatformer(
   engine: ex.Engine,
   config: GameConfiguration,
@@ -118,20 +150,23 @@ function setupPlatformer(
   engine.addScene("main", scene);
   engine.goToScene("main");
 
+  const assets = getAssets(config);
   const gravity = 800 * getMusicGravity(config);
   const speedMult = getMusicSpeedMultiplier(config);
   const spawnRate = getMusicSpawnRate(config);
 
-  addBeatPulse(engine, scene, config);
+  setupSceneVisuals(engine, scene, config);
 
+  // Player
+  const playerGraphic = renderSprite(assets.player, 32);
   const player = new ex.Actor({
     x: 100,
     y: engine.drawHeight - 100,
     width: 32,
     height: 32,
-    color: ex.Color.fromHex(config.colorPalette.player),
     collisionType: ex.CollisionType.Active,
   });
+  player.graphics.use(playerGraphic);
   player.body.useGravity = true;
   player.vel = ex.vec(0, 0);
   let isGrounded = false;
@@ -142,29 +177,37 @@ function setupPlatformer(
       player.vel.y = 0;
     }
   });
-
   scene.add(player);
 
+  // Ground
+  const groundW = engine.drawWidth * 3;
+  const groundH = 32;
+  const groundGraphic = renderPlatform(assets.platform, groundW, groundH);
   const ground = new ex.Actor({
     x: engine.drawWidth / 2,
     y: engine.drawHeight - 16,
-    width: engine.drawWidth * 3,
-    height: 32,
-    color: ex.Color.fromHex(config.colorPalette.platforms),
+    width: groundW,
+    height: groundH,
     collisionType: ex.CollisionType.Fixed,
   });
+  ground.graphics.use(groundGraphic);
   scene.add(ground);
 
+  // Platforms + collectibles
+  const collectibleGraphic = renderSprite(assets.collectible, 16);
   const platformCount = 8;
   for (let i = 0; i < platformCount; i++) {
+    const pw = 80 + Math.random() * 60;
+    const ph = 16;
+    const platGraphic = renderPlatform(assets.platform, pw, ph);
     const plat = new ex.Actor({
       x: 200 + i * 200 + Math.random() * 100,
       y: engine.drawHeight - 100 - Math.random() * 300,
-      width: 80 + Math.random() * 60,
-      height: 16,
-      color: ex.Color.fromHex(config.colorPalette.platforms),
+      width: pw,
+      height: ph,
       collisionType: ex.CollisionType.Fixed,
     });
+    plat.graphics.use(platGraphic);
     scene.add(plat);
 
     if (Math.random() > 0.4) {
@@ -173,9 +216,10 @@ function setupPlatformer(
         y: plat.pos.y - 30,
         width: 16,
         height: 16,
-        color: ex.Color.fromHex(config.colorPalette.collectibles),
         collisionType: ex.CollisionType.Passive,
       });
+      col.graphics.use(collectibleGraphic);
+      addBeatRotation(col, config);
       col.on("collisionstart", (evt) => {
         if (evt.other.owner === player) {
           addScore(10);
@@ -186,15 +230,20 @@ function setupPlatformer(
     }
   }
 
+  // Enemy spawner
+  const enemyDescs = assets.enemies;
   const spawnEnemy = () => {
+    const desc = enemyDescs[Math.floor(Math.random() * enemyDescs.length)];
+    const enemyGraphic = renderSprite(desc, 24);
     const enemy = new ex.Actor({
       x: engine.drawWidth + 50,
       y: engine.drawHeight - 50,
       width: 24,
       height: 24,
-      color: ex.Color.fromHex(config.colorPalette.enemies),
       collisionType: ex.CollisionType.Active,
     });
+    enemy.graphics.use(enemyGraphic);
+    addBeatRotation(enemy, config);
     enemy.vel = ex.vec(-config.playerSpeed * 0.8 * speedMult, 0);
     enemy.on("collisionstart", (evt) => {
       if (evt.other.owner === player) gameOver();
@@ -206,14 +255,11 @@ function setupPlatformer(
     scene.add(enemy);
   };
 
-  const enemyTimer = new ex.Timer({
-    fcn: spawnEnemy,
-    interval: spawnRate,
-    repeats: true,
-  });
+  const enemyTimer = new ex.Timer({ fcn: spawnEnemy, interval: spawnRate, repeats: true });
   scene.add(enemyTimer);
   enemyTimer.start();
 
+  // Input
   scene.on("preupdate", () => {
     player.acc.y = gravity;
 
@@ -241,6 +287,8 @@ function setupPlatformer(
   });
 }
 
+// ─── Dodge ───────────────────────────────────────────────────────
+
 function setupDodge(
   engine: ex.Engine,
   config: GameConfiguration,
@@ -251,30 +299,39 @@ function setupDodge(
   engine.addScene("main", scene);
   engine.goToScene("main");
 
+  const assets = getAssets(config);
   const speedMult = getMusicSpeedMultiplier(config);
   const spawnRate = getMusicSpawnRate(config);
 
-  addBeatPulse(engine, scene, config);
+  setupSceneVisuals(engine, scene, config);
 
+  // Player
+  const playerGraphic = renderSprite(assets.player, 28);
   const player = new ex.Actor({
     x: engine.drawWidth / 2,
     y: engine.drawHeight - 60,
     width: 28,
     height: 28,
-    color: ex.Color.fromHex(config.colorPalette.player),
     collisionType: ex.CollisionType.Active,
   });
+  player.graphics.use(playerGraphic);
   scene.add(player);
 
+  // Obstacle spawner
+  const enemyDescs = assets.enemies;
   const spawnObstacle = () => {
+    const size = 20 + Math.random() * 30;
+    const desc = enemyDescs[Math.floor(Math.random() * enemyDescs.length)];
+    const obsGraphic = renderSprite(desc, size);
     const obs = new ex.Actor({
       x: Math.random() * engine.drawWidth,
       y: -20,
-      width: 20 + Math.random() * 30,
-      height: 20 + Math.random() * 30,
-      color: ex.Color.fromHex(config.colorPalette.enemies),
+      width: size,
+      height: size,
       collisionType: ex.CollisionType.Passive,
     });
+    obs.graphics.use(obsGraphic);
+    addBeatRotation(obs, config);
     obs.vel = ex.vec(
       (Math.random() - 0.5) * 50 * speedMult,
       (config.playerSpeed * 0.6 + Math.random() * 100) * speedMult
@@ -319,6 +376,8 @@ function setupDodge(
   });
 }
 
+// ─── Collector ───────────────────────────────────────────────────
+
 function setupCollector(
   engine: ex.Engine,
   config: GameConfiguration,
@@ -329,33 +388,39 @@ function setupCollector(
   engine.addScene("main", scene);
   engine.goToScene("main");
 
+  const assets = getAssets(config);
   const speedMult = getMusicSpeedMultiplier(config);
   const spawnRate = getMusicSpawnRate(config);
 
-  addBeatPulse(engine, scene, config);
+  setupSceneVisuals(engine, scene, config);
 
+  // Player
+  const playerGraphic = renderSprite(assets.player, 24);
   const player = new ex.Actor({
     x: engine.drawWidth / 2,
     y: engine.drawHeight / 2,
     width: 24,
     height: 24,
-    color: ex.Color.fromHex(config.colorPalette.player),
     collisionType: ex.CollisionType.Active,
   });
+  player.graphics.use(playerGraphic);
   scene.add(player);
 
   let missed = 0;
   const maxMissed = 10;
 
+  // Collectible spawner
+  const collectibleGraphic = renderSprite(assets.collectible, 12);
   const spawnParticle = () => {
     const p = new ex.Actor({
       x: Math.random() * engine.drawWidth,
       y: -10,
       width: 12,
       height: 12,
-      color: ex.Color.fromHex(config.colorPalette.collectibles),
       collisionType: ex.CollisionType.Passive,
     });
+    p.graphics.use(collectibleGraphic);
+    addBeatRotation(p, config);
     p.vel = ex.vec(
       (Math.random() - 0.5) * 30,
       (40 + Math.random() * 60) * speedMult
@@ -391,6 +456,8 @@ function setupCollector(
   });
 }
 
+// ─── Runner ──────────────────────────────────────────────────────
+
 function setupRunner(
   engine: ex.Engine,
   config: GameConfiguration,
@@ -401,32 +468,39 @@ function setupRunner(
   engine.addScene("main", scene);
   engine.goToScene("main");
 
+  const assets = getAssets(config);
   const musicGravity = getMusicGravity(config);
   const speedMult = getMusicSpeedMultiplier(config);
   const spawnRate = getMusicSpawnRate(config);
 
-  addBeatPulse(engine, scene, config);
+  setupSceneVisuals(engine, scene, config);
 
   const groundY = engine.drawHeight - 60;
 
+  // Ground
+  const groundW = engine.drawWidth * 2;
+  const groundH = 32;
+  const groundGraphic = renderPlatform(assets.platform, groundW, groundH);
   const ground = new ex.Actor({
     x: engine.drawWidth / 2,
     y: groundY + 16,
-    width: engine.drawWidth * 2,
-    height: 32,
-    color: ex.Color.fromHex(config.colorPalette.platforms),
+    width: groundW,
+    height: groundH,
     collisionType: ex.CollisionType.Fixed,
   });
+  ground.graphics.use(groundGraphic);
   scene.add(ground);
 
+  // Player
+  const playerGraphic = renderSprite(assets.player, 28);
   const player = new ex.Actor({
     x: 120,
     y: groundY - 20,
     width: 28,
     height: 28,
-    color: ex.Color.fromHex(config.colorPalette.player),
     collisionType: ex.CollisionType.Active,
   });
+  player.graphics.use(playerGraphic);
   player.body.useGravity = true;
   let isGrounded = true;
 
@@ -436,19 +510,23 @@ function setupRunner(
       player.vel.y = 0;
     }
   });
-
   scene.add(player);
 
+  // Obstacle spawner
+  const enemyDescs = assets.enemies;
   const spawnObs = () => {
     const h = 20 + Math.random() * 40;
+    const desc = enemyDescs[Math.floor(Math.random() * enemyDescs.length)];
+    const obsGraphic = renderSprite(desc, Math.max(20, h));
     const obs = new ex.Actor({
       x: engine.drawWidth + 50,
       y: groundY - h / 2,
       width: 20,
       height: h,
-      color: ex.Color.fromHex(config.colorPalette.enemies),
       collisionType: ex.CollisionType.Passive,
     });
+    obs.graphics.use(obsGraphic);
+    addBeatRotation(obs, config);
     obs.vel = ex.vec(-config.playerSpeed * speedMult, 0);
     obs.on("collisionstart", (evt) => {
       if (evt.other.owner === player) gameOver();
