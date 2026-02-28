@@ -19,11 +19,11 @@ const ASSET_MANIFEST: Record<string, string> = {
   ground_3: `${BASE}/grounds/Grounds/groundSquare_04_001-hd.png`,
   ground_4: `${BASE}/grounds/Grounds/groundSquare_05_001-hd.png`,
   // Backgrounds
-  bg_0: `${BASE}/backgrounds/Backgrounds/game_bg_01_001-hd.png`,
-  bg_1: `${BASE}/backgrounds/Backgrounds/game_bg_02_001-hd.png`,
-  bg_2: `${BASE}/backgrounds/Backgrounds/game_bg_03_001-hd.png`,
-  bg_3: `${BASE}/backgrounds/Backgrounds/game_bg_04_001-hd.png`,
-  bg_4: `${BASE}/backgrounds/Backgrounds/game_bg_05_001-hd.png`,
+  bg_0: `${BASE}/backgrounds/Backgrounds/game_bg_color_blue.png`,
+  bg_1: `${BASE}/backgrounds/Backgrounds/game_bg_color_green.png`,
+  bg_2: `${BASE}/backgrounds/Backgrounds/game_bg_color_purple.png`,
+  bg_3: `${BASE}/backgrounds/Backgrounds/game_bg_color_red.png`,
+  bg_4: `${BASE}/backgrounds/Backgrounds/game_bg_color_orange.png`,
   // Portals spritesheet
   portals: `${BASE}/portals/portals.png`,
   // Obstacles / triggers spritesheet

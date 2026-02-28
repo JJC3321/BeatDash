@@ -10,7 +10,7 @@ import {
   getDefaultAssets,
 } from "@/game/assets";
 import { mapGenerator } from "./mapGenerator";
-import { preloadGDAssets } from "@/game/geometryDashAssets";
+import { preloadGDAssets, getGDImage } from "@/game/geometryDashAssets";
 import { getPremadeMap } from "@/game/premadeMaps";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -33,6 +33,9 @@ interface TrackParams {
   obstacleColor: string;
   obstacleGlow: string;
 }
+
+const BACKGROUND_SWITCH_INTERVAL_MS = 10_000;
+const GEOMETRY_DASH_BACKGROUND_KEYS = ["bg_0", "bg_1", "bg_2", "bg_3", "bg_4"] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -313,6 +316,62 @@ function setupGeoDash(
 
   // ── Background visuals ──
   const bpm = config.metrics?.avgTempo || 120;
+  const backgroundLayer = new ex.Actor({
+    x: W / 2,
+    y: H / 2,
+    width: W,
+    height: H,
+    z: -25,
+    collisionType: ex.CollisionType.PreventCollision,
+  });
+  scene.add(backgroundLayer);
+
+  const buildBackgroundGraphic = (key: (typeof GEOMETRY_DASH_BACKGROUND_KEYS)[number]): ex.Canvas => {
+    const image = getGDImage(key);
+    return new ex.Canvas({
+      width: W,
+      height: H,
+      cache: true,
+      draw: (ctx) => {
+        if (image) {
+          ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, W, H);
+        } else {
+          const fallbackGradient = ctx.createLinearGradient(0, 0, 0, H);
+          fallbackGradient.addColorStop(0, "#050505");
+          fallbackGradient.addColorStop(1, config.colorPalette.background);
+          ctx.fillStyle = fallbackGradient;
+          ctx.fillRect(0, 0, W, H);
+        }
+
+        // Add a very light darkening pass for HUD readability without desaturating.
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.fillStyle = "#000000";
+        ctx.globalAlpha = 0.08;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+      },
+    });
+  };
+
+  let currentBackgroundIndex = 0;
+  const applyBackgroundGraphic = () => {
+    const backgroundKey = GEOMETRY_DASH_BACKGROUND_KEYS[currentBackgroundIndex];
+    backgroundLayer.graphics.use(buildBackgroundGraphic(backgroundKey));
+  };
+
+  applyBackgroundGraphic();
+  const backgroundSwitchTimer = new ex.Timer({
+    fcn: () => {
+      currentBackgroundIndex = (currentBackgroundIndex + 1) % GEOMETRY_DASH_BACKGROUND_KEYS.length;
+      applyBackgroundGraphic();
+    },
+    interval: BACKGROUND_SWITCH_INTERVAL_MS,
+    repeats: true,
+  });
+  scene.add(backgroundSwitchTimer);
+  backgroundSwitchTimer.start();
+
   addBackgroundParticles(engine, scene, assets.background, bpm);
 
   // Beat pulse overlay
