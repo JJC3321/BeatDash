@@ -44,7 +44,7 @@ Use a dark background color. Make the color palette cohesive and mood-matching. 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-3-pro-preview",
         messages: [
           { role: "system", content: "You are a creative game designer. Always use the provided tool to return structured game configurations." },
           { role: "user", content: prompt },
